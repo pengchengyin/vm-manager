@@ -2,6 +2,7 @@
   <div>
     <div style="margin-bottom:12px;display:flex;gap:8px;align-items:center;">
       <button @click="load">刷新</button>
+      <button @click="openCreateVm" style="background-color:#4CAF50;color:white;">创建虚拟机</button>
       <label>远程访问IP：<input v-model="targetIp" placeholder="例如 192.168.1.100" /></label>
     </div>
 
@@ -58,6 +59,32 @@
           <button type="button" @click="closePwd">取消</button>
         </div>
         <p style="color:#888;margin-top:8px;">提示：需要来宾系统安装并运行 qemu-guest-agent。</p>
+      </form>
+    </dialog>
+
+    <dialog ref="createVmDlg">
+      <form @submit.prevent="submitCreateVm">
+        <h3>创建虚拟机</h3>
+        <div style="margin:6px 0;">
+          <label>虚拟机名称：<input v-model="createVmForm.name" required placeholder="输入唯一名称" /></label>
+        </div>
+        <div style="margin:6px 0;">
+          <label>内存大小(MB)：<input type="number" v-model.number="createVmForm.memoryMB" required min="512" step="512" /></label>
+        </div>
+        <div style="margin:6px 0;">
+          <label>CPU核心数：<input type="number" v-model.number="createVmForm.cpuCount" required min="1" max="8" /></label>
+        </div>
+        <div style="margin:6px 0;">
+          <label>磁盘镜像路径：<input v-model="createVmForm.diskImagePath" required placeholder="例如 /var/lib/libvirt/images/vm.qcow2" /></label>
+        </div>
+        <div style="margin:6px 0;">
+          <label>网络名称：<input v-model="createVmForm.networkName" required placeholder="例如 default" /></label>
+        </div>
+        <div style="margin-top:10px;">
+          <button type="submit">创建</button>
+          <button type="button" @click="closeCreateVm">取消</button>
+        </div>
+        <p style="color:#888;margin-top:8px;">提示：请确保磁盘镜像文件存在且网络名称有效。</p>
       </form>
     </dialog>
   </div>
@@ -117,6 +144,16 @@ const pwdDlg = ref<HTMLDialogElement | null>(null)
 const pwdVmName = ref('')
 const pwdForm = ref({ username: 'root', password: '', encrypted: false })
 
+// 创建虚拟机相关
+const createVmDlg = ref<HTMLDialogElement | null>(null)
+const createVmForm = ref({
+  name: '',
+  memoryMB: 2048,
+  cpuCount: 2,
+  diskImagePath: '',
+  networkName: 'default'
+})
+
 function openChangePwd(name: string) {
   pwdVmName.value = name
   pwdForm.value = { username: 'root', password: '', encrypted: false }
@@ -129,6 +166,35 @@ async function submitPwd() {
   await axios.post(`/api/v1/vms/${pwdVmName.value}/password`, pwdForm.value)
   alert('已发送修改密码指令')
   closePwd()
+}
+
+// 创建虚拟机函数
+function openCreateVm() {
+  createVmForm.value = {
+    name: '',
+    memoryMB: 2048,
+    cpuCount: 2,
+    diskImagePath: '',
+    networkName: 'default'
+  }
+  createVmDlg.value?.showModal()
+}
+
+function closeCreateVm() { createVmDlg.value?.close() }
+
+async function submitCreateVm() {
+  try {
+    const { data } = await axios.post('/api/v1/vms', createVmForm.value)
+    if (data.success) {
+      alert('虚拟机创建成功')
+      closeCreateVm()
+      await load() // 刷新虚拟机列表
+    } else {
+      alert(`创建失败: ${data.message}`)
+    }
+  } catch (error: any) {
+    alert(`创建失败: ${error.response?.data?.message || error.message}`)
+  }
 }
 
 onMounted(load)

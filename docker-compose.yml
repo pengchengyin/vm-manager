@@ -1,0 +1,28 @@
+services:
+  vm-manager:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: vm-manager:1.0.0
+    container_name: vm-manager
+    hostname: vm-manager
+    env_file: .env
+    ports:
+      - "80:80"  # 只暴露80端口，由Nginx代理所有请求
+    restart: unless-stopped
+    # 如果需要访问主机上的 libvirt socket（本地连接），取消下面的注释
+    # volumes:
+    #   - /var/run/libvirt:/var/run/libvirt:ro
+    #   - /etc/libvirt:/etc/libvirt:ro
+    # network_mode: "host"  # 使用主机网络模式（可选，如果使用 SSH 连接则不需要）
+    # 如果使用 SSH 连接，确保容器可以访问目标主机
+    # 可以通过挂载 SSH 密钥来避免密码输入
+    # volumes:
+    #   - ~/.ssh:/root/.ssh:ro  # 挂载 SSH 密钥（如果使用密钥认证）
+    environment:
+      - TZ=Asia/Shanghai
+      - APP_NAME=vm-manager
+      - APP_VERSION=1.0.0
+      - SPRING_PROFILES_ACTIVE=prod
+      - SWAGGER_DOC_ENABLED=true
+
