@@ -1,5 +1,7 @@
 package com.pengchengyin.vmmanagerbackend.service;
 
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -8,7 +10,9 @@ import org.libvirt.Domain;
 import org.libvirt.DomainInfo;
 import org.libvirt.LibvirtException;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.core.io.ClassPathResource;
 import org.springframework.stereotype.Service;
+import org.springframework.util.FileCopyUtils;
 
 import com.pengchengyin.vmmanagerbackend.model.CreateVmRequest;
 import com.pengchengyin.vmmanagerbackend.model.VmInfo;
@@ -107,56 +111,24 @@ public class VirtualMachineService {
      * 生成虚拟机XML配置
      */
     private String generateVmXml(CreateVmRequest request) {
-        // 生成UUID
-        String uuid = java.util.UUID.randomUUID().toString();
-        
-        // 获取 QEMU 路径（如果配置了）
-        String qemuPath = connectionService.getQemuPath();
-        String emulatorTag = "";
-        if (qemuPath != null && !qemuPath.isEmpty()) {
-            emulatorTag = String.format("<emulator>%s</emulator>\n                        ", qemuPath);
-        }
-        // 如果没有配置，libvirt 会自动使用系统默认路径
-
-        return String.format("""
-                <domain type='kvm'>
-                    <name>%s</name>
-                    <uuid>%s</uuid>
-                    <memory unit='KiB'>%d</memory>
-                    <currentMemory unit='KiB'>%d</currentMemory>
-                    <vcpu placement='static'>%d</vcpu>
-                    <os>
-                        <type arch='x86_64' machine='pc-q35-7.2'>hvm</type>
-                        <boot dev='hd'/>
-                    </os>
-                    <features>
-                        <acpi/>
-                        <apic/>
-                    </features>
-                    <cpu mode='host-passthrough'/>
-                    <clock offset='utc'/>
-                    <on_poweroff>destroy</on_poweroff>
-                    <on_reboot>restart</on_reboot>
-                    <on_crash>destroy</on_crash>
-                    <devices>
-                        %s<disk type='file' device='disk'>
-                            <driver name='qemu' type='qcow2'/>
-                            <source file='%s'/>
-                            <target dev='vda' bus='virtio'/>
-                        </disk>
-                        <interface type='network'>
-                            <source network='%s'/>
-                            <model type='virtio'/>
-                        </interface>
-                        <graphics type='vnc' port='-1' autoport='yes' listen='0.0.0.0'/>
-                        <video>
-                            <model type='cirrus' vram='16384' heads='1'/>
-                        </video>
-                    </devices>
-                </domain>
-                """, request.getName(), uuid,
+        try {
+            // 生成UUID
+            String uuid = java.util.UUID.randomUUID().toString();
+            
+            // 从模板文件读取XML内容
+            ClassPathResource resource = new ClassPathResource("templates/vm-template.xml");
+            String templateContent = new String(FileCopyUtils.copyToByteArray(resource.getInputStream()), StandardCharsets.UTF_8);
+            
+            // 使用参数替换模板中的占位符
+            // 注意：模板中的第一个空字符串占位符是为了保持兼容性
+            return String.format(templateContent, 
+                request.getName(), uuid,
                 request.getMemoryMB() * 1024, request.getMemoryMB() * 1024,
-                request.getCpuCount(), emulatorTag, request.getDiskImagePath(), request.getNetworkName());
+                request.getCpuCount(), "", request.getDiskImagePath(), request.getNetworkName());
+        } catch (IOException e) {
+            log.error("读取虚拟机XML模板失败: {}", e.getMessage(), e);
+            throw new RuntimeException("无法读取虚拟机XML模板", e);
+        }
     }
 
     /**

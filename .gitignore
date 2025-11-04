@@ -49,3 +49,4 @@ hs_err_pid*
 
 /frontend/dist/
 /frontend/node_modules/
+!/.env
